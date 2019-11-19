@@ -1,5 +1,6 @@
 package utils
 
+import java.io.File
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import java.{lang, util}
@@ -12,7 +13,6 @@ import akka.stream.scaladsl.Sink
 import com.amazonaws.services.s3.model.PutObjectResult
 import com.typesafe.config.ConfigFactory
 import filters.AuthInfoMock
-import loader.NioLoader
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.{
@@ -34,7 +34,7 @@ import play.core.DefaultWebCommands
 import play.modules.reactivemongo.ReactiveMongoApi
 import reactivemongo.play.json.collection.JSONCollection
 import service.ConsentManagerService
-import java.sql.{Connection, DriverManager}
+import java.sql.DriverManager
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -184,9 +184,10 @@ trait TestUtilsMongo
     Configuration(
       ConfigFactory.parseString(s"""
                                    |nio.mongo.url="$mongoUrl"
+                                   |nio.db.batchSize=1
                                    |mongodb.uri="$mongoUrl"
                                    |tenant.admin.secret="secret"
-                                   |store.flush=true
+                                   |db.flush=true
                                    |nio.s3Config.v4Auth="false"
                                    |nio.kafka.port=$kafkaPort
                                    |nio.kafka.servers="127.0.0.1:$kafkaPort"
@@ -194,7 +195,7 @@ trait TestUtilsMongo
                                    |nio.kafka.eventsGroupIn=10000
                                    |nio.s3ManagementEnabled=false
                                    |nio.mailSendingEnable=false
-                                   |store.tenants=["$tenant"]
+                                   |db.tenants=["$tenant"]
                                    |nio.filter.securityMode="default"
                                    |db.default.driver=org.postgresql.Driver
                                    |db.default.url="jdbc:postgresql://localhost:5432/nio"
@@ -307,6 +308,19 @@ trait TestUtilsMongo
                         httpVerb = POST,
                         body = body,
                         headers = headers)
+  }
+
+  def postBinaryFile(path: String,
+                     body: File,
+                     api: Boolean = true,
+                     headers: Seq[(String, String)] = jsonHeaders) = {
+    val suffix = if (api) apiPath else serverHost
+    val futureResponse = ws
+      .url(s"$suffix$path")
+      .withHttpHeaders(headers: _*)
+      .post(body)
+
+    Await.result[WSResponse](futureResponse, Duration(10, TimeUnit.SECONDS))
   }
 
   def getJson(path: String, headers: Seq[(String, String)] = jsonHeaders) = {
