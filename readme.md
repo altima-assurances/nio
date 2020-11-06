@@ -28,3 +28,15 @@ and general hints on how to prepare your pull request. You can also ask for clar
 ## License
 
 Nio is Open Source and available under the Apache 2 License.
+
+
+# Build nio-server jar for production
+
+You need java 8 installed (won't work with higher version)
+
+```bash
+sbt 'project nio-server' ';clean;compile;assembly'
+```
+
+Resulting jar will be in path `/nio-server/target/scala-2.12/nio.jar`
+
