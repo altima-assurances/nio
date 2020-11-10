@@ -8,7 +8,7 @@ import controllers.AppErrorWithStatus
 import db.LastConsentFactDataStore
 import models._
 import play.api.Logger
-import play.api.libs.json.{Json, OFormat}
+import play.api.libs.json.{JsValue, Json, OFormat}
 import play.modules.reactivemongo.ReactiveMongoApi
 import play.modules.reactivemongo.json.ImplicitBSONHandlers._
 import reactivemongo.akkastream.cursorProducer
