@@ -35,7 +35,9 @@ trait LastConsentFactDataStore {
                       orgKey: String,
                       page: Int,
                       pageSize: Int,
-                      query: Option[String]): Future[(Seq[ConsentFact], Int)]
+                      query: Option[String],
+                      userIds: Option[String],
+                      accepted: Option[String]): Future[(Seq[ConsentFact], Int)]
 
   def findAll(tenant: String): Future[Seq[ConsentFact]]
 

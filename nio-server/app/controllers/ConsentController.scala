@@ -5,17 +5,8 @@ import akka.http.scaladsl.util.FastFuture
 import akka.stream.ActorMaterializer
 import akka.util.ByteString
 import auth.SecuredAuthContext
-import controllers.ErrorManager.{
-  AppErrorManagerResult,
-  ErrorManagerResult,
-  ErrorWithStatusManagerResult
-}
-import db.{
-  ConsentFactDataStore,
-  LastConsentFactDataStore,
-  OrganisationDataStore,
-  UserDataStore
-}
+import controllers.ErrorManager.{AppErrorManagerResult, ErrorManagerResult, ErrorWithStatusManagerResult}
+import db.{ConsentFactDataStore, LastConsentFactDataStore, OrganisationDataStore, UserDataStore}
 import libs.xmlorjson.XmlOrJson
 import messaging.KafkaMessageBroker
 import models.{ConsentFact, _}
@@ -175,10 +166,18 @@ class ConsentController(
               orgKey: String,
               page: Int = 0,
               pageSize: Int = 10,
-              query: Option[String]) =
+              query: Option[String],
+              userIds: Option[String],
+              accepted: Option[String]) = {
     AuthAction.async { implicit req =>
       lastConsentFactDataStore
-        .findAllByOrgKey(tenant, orgKey, page, pageSize, query)
+        .findAllByOrgKey(tenant,
+                         orgKey,
+                         page,
+                         pageSize,
+                         query,
+                         userIds,
+                         accepted)
         .map {
           case (consentsFacts, count) =>
             val pagedConsentFacts =
@@ -194,6 +193,7 @@ class ConsentController(
             renderMethod(pagedConsentFacts)
         }
     }
+  }
 
   def getConsentFactHistory(tenant: String,
                             orgKey: String,
