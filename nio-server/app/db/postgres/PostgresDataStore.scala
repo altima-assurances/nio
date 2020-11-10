@@ -10,7 +10,7 @@ import async._
 import scalikejdbc.streams.DatabasePublisher
 
 import scala.concurrent.{ExecutionContext, Future}
-
+import scalikejdbc.streams._
 trait PostgresDataStore[T] extends SQLSyntaxSupport[T] {
 
   implicit def executionContext: ExecutionContext
