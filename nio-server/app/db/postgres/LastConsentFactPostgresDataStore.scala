@@ -9,12 +9,12 @@ import db.LastConsentFactDataStore
 import models._
 import play.api.Logger
 import play.api.libs.json.{JsArray, JsObject, Json, OFormat}
+import scalikejdbc._
+import scalikejdbc.async._
 import utils.Result.{AppErrors, ErrorMessage}
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Failure
-import scalikejdbc._
-import async._
 
 class LastConsentFactPostgresDataStore()(
     implicit val executionContext: ExecutionContext)
@@ -48,18 +48,27 @@ class LastConsentFactPostgresDataStore()(
       orgKey: String,
       page: Int,
       pageSize: Int,
-      query: Option[String]): Future[(Seq[ConsentFact], Int)] = {
+      query: Option[String],
+      userIds: Option[String],
+      accepted: Option[String]): Future[(Seq[ConsentFact], Int)] = {
 
     val _query = query match {
       case Some(str) => Json.parse(str).as[JsArray]
-      case None      => Json.arr()
+      case None      => Json.arr(Json.obj())
+    }
+
+    val _userIds = userIds match {
+      case Some(str) => Json.parse(str).as[JsArray]
+      case None      => JsArray()
     }
 
     findManyByQueriesPaginateCount(tenant = tenant,
                                    rootQuery = Json.obj("orgKey" -> orgKey),
                                    query = _query,
                                    page = page,
-                                   pageSize = pageSize)
+                                   pageSize = pageSize,
+                                   userIds = _userIds,
+                                   accepted = accepted)
   }
 
   def findAllByUserId(tenant: String,

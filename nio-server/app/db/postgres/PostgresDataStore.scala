@@ -3,6 +3,7 @@ package db.postgres
 import akka.http.scaladsl.util.FastFuture
 import akka.stream.Materializer
 import akka.stream.scaladsl.Source
+import play.api.Logger
 import play.api.libs.json._
 import scalikejdbc._
 import async._
@@ -186,15 +187,35 @@ trait PostgresDataStore[T] extends SQLSyntaxSupport[T] {
 
   def count(tenant: String,
             rootQuery: JsObject,
-            query: JsArray): Future[Int] = {
+            query: JsArray,
+            userIds: JsArray,
+            accepted: Option[String]): Future[Int] = {
+    val _rootQuery =
+      if (accepted.isDefined)
+        rootQuery.deepMerge(
+          Json.obj("metaData" -> Json.obj("accepted" -> accepted.get)))
+      else rootQuery
     AsyncDB withPool { implicit session =>
-      sql"""with temps as (
+      val sqlQuery = (if (userIds.value.isEmpty) 1 else 2) match {
+        case 1 =>
+          sql"""with temps as (
             select id, jsonb_array_elements(${query
-        .toString()}::jsonb ) <@ any (array [jsonb_array_elements(payload -> 'groups')]) as agg
-            from ${table} lf where lf.tenant = ${tenant} and payload @> ${rootQuery
-        .toString()}::jsonb), agg_2 as (select id, ARRAY_AGG(agg) from temps group by id),
+            .toString()}::jsonb ) <@ any (array (select jsonb_array_elements(payload -> 'groups'))) as agg
+            from ${table} lf where lf.tenant = ${tenant} and payload @> ${_rootQuery
+            .toString()}::jsonb), agg_2 as (select id, ARRAY_AGG(agg) from temps group by id),
             ids as (select * from agg_2 where true = all(array_remove(array_agg, null)) )
             select count(*) as _count from  ids"""
+        case 2 =>
+          sql"""with temps as (
+            select id, jsonb_array_elements(${query
+            .toString()}::jsonb ) <@ any (array (select jsonb_array_elements(payload -> 'groups'))) as agg
+            from ${table} lf where lf.tenant = ${tenant} and payload @> ${_rootQuery
+            .toString()}::jsonb and payload -> 'userId' @> any (array (select jsonb_array_elements(${userIds
+            .toString()}::jsonb)))), agg_2 as (select id, ARRAY_AGG(agg) from temps group by id),
+            ids as (select * from agg_2 where true = all(array_remove(array_agg, null)) )
+            select count(*) as _count from  ids"""
+      }
+      sqlQuery
         .map(rs => rs.get[Int]("_count"))
         .single()
         .future()
@@ -202,23 +223,30 @@ trait PostgresDataStore[T] extends SQLSyntaxSupport[T] {
     }
   }
 
-  def findManyByQueriesPaginateCount(tenant: String,
-                                     rootQuery: JsObject,
-                                     query: JsArray,
-                                     sort: JsObject = Json.obj("_id" -> 1),
-                                     page: Int,
-                                     pageSize: Int): Future[(Seq[T], Int)] = {
-    for {
-      count <- count(tenant, rootQuery, query)
-      queryRes <- findManyByQueriesPaginate(tenant,
-                                            rootQuery,
-                                            query,
-                                            sort,
-                                            page,
-                                            pageSize)
-    } yield {
-      (queryRes, count)
-    }
+  def findManyByQueriesPaginateCount(
+      tenant: String,
+      rootQuery: JsObject,
+      query: JsArray,
+      sort: JsObject = Json.obj("_id" -> 1),
+      page: Int,
+      pageSize: Int,
+      userIds: JsArray,
+      accepted: Option[String]): Future[(Seq[T], Int)] = {
+    Future
+      .sequence(
+        List(count(tenant, rootQuery, query, userIds, accepted),
+             findManyByQueriesPaginate(tenant,
+                                       rootQuery,
+                                       query,
+                                       sort,
+                                       page,
+                                       pageSize,
+                                       userIds,
+                                       accepted))
+      )
+      .map { e =>
+        (e(1).asInstanceOf[Seq[T]], e(0).asInstanceOf[Int])
+      }
   }
 
   def findManyByQueriesPaginate(tenant: String,
@@ -226,23 +254,69 @@ trait PostgresDataStore[T] extends SQLSyntaxSupport[T] {
                                 query: JsArray,
                                 sort: JsObject = Json.obj("_id" -> -1),
                                 page: Int,
-                                pageSize: Int): Future[Seq[T]] = {
-
+                                pageSize: Int,
+                                userIds: JsArray,
+                                accepted: Option[String]): Future[Seq[T]] = {
+    val _rootQuery =
+      if (accepted.isDefined)
+        rootQuery.deepMerge(
+          Json.obj("metaData" -> Json.obj("accepted" -> accepted.get)))
+      else rootQuery
+    Logger.info("rootQuery" + _rootQuery.toString())
     AsyncDB withPool { implicit session =>
-      val sqlQuery = (sort \ "_id").asOpt[Int].getOrElse(1) match {
+      val sqlQuery = (sort \ "_id")
+        .asOpt[Int]
+        .map(
+          e =>
+            if (userIds.value.nonEmpty && accepted.isEmpty) 2
+            else if (userIds.value.nonEmpty && accepted.isDefined) 3
+            else if (userIds.value.isEmpty && accepted.isDefined) 4
+            else e)
+        .getOrElse(
+          if (userIds.value.nonEmpty && accepted.isEmpty) 2
+          else if (userIds.value.nonEmpty && accepted.isDefined) 3
+          else if (userIds.value.isEmpty && accepted.isDefined) 4
+          else 1
+        ) match {
         case 1 =>
           sql"""with temps as (
             select id, jsonb_array_elements(${query
-            .toString()}::jsonb ) <@ any (array [jsonb_array_elements(payload -> 'groups')]) as agg
-            from ${table} lf where lf.tenant = ${tenant} and payload @> ${rootQuery
+            .toString()}::jsonb ) <@ any (array (select jsonb_array_elements(payload -> 'groups'))) as agg
+            from ${table} lf where lf.tenant = ${tenant} and payload @> ${_rootQuery
             .toString()}::jsonb), agg_2 as (select id, ARRAY_AGG(agg) from temps group by id),
             ids as (select * from agg_2 where true = all(array_remove(array_agg, null)) limit ${pageSize} offset ${page * pageSize} )
+            select lf.* from ${table} lf, ids where ids.id = lf.id order by lf.payload->>'_id' asc """
+        case 2 =>
+          sql"""with temps as (
+            select id, jsonb_array_elements(${query
+            .toString()}::jsonb ) <@ any (array (select jsonb_array_elements(payload -> 'groups'))) as agg
+            from ${table} lf where lf.tenant = ${tenant} and payload @> ${_rootQuery
+            .toString()}::jsonb and payload -> 'userId' @> any (array (select jsonb_array_elements(${userIds
+            .toString()}::jsonb)))), agg_2 as (select id, ARRAY_AGG(agg) from temps group by id),
+            ids as (select * from agg_2 where true = all(array_remove(array_agg, null)))
+            select lf.* from ${table} lf, ids where ids.id = lf.id order by lf.payload->>'_id' asc """
+        case 3 =>
+          sql"""with temps as (
+            select id, jsonb_array_elements(${query
+            .toString()}::jsonb ) <@ any (array (select jsonb_array_elements(payload -> 'groups'))) as agg
+            from ${table} lf where lf.tenant = ${tenant} and payload @> ${_rootQuery
+            .toString()}::jsonb and payload -> 'userId' @> any (array (select jsonb_array_elements(${userIds
+            .toString()}::jsonb)))), agg_2 as (select id, ARRAY_AGG(agg) from temps group by id),
+            ids as (select * from agg_2 where true = all(array_remove(array_agg, null)))
+            select lf.* from ${table} lf, ids where ids.id = lf.id order by lf.payload->>'_id' asc """
+        case 4 =>
+          sql"""with temps as (
+            select id, jsonb_array_elements(${query
+            .toString()}::jsonb ) <@ any (array (select jsonb_array_elements(payload -> 'groups'))) as agg
+            from ${table} lf where lf.tenant = ${tenant} and payload @> ${_rootQuery
+            .toString()}::jsonb), agg_2 as (select id, ARRAY_AGG(agg) from temps group by id),
+            ids as (select * from agg_2 where true = all(array_remove(array_agg, null)) limit ${pageSize} offset ${page * pageSize})
             select lf.* from ${table} lf, ids where ids.id = lf.id order by lf.payload->>'_id' asc """
         case _ =>
           sql"""with temps as (
             select id, jsonb_array_elements(${query
-            .toString()}::jsonb ) <@ any (array [jsonb_array_elements(payload -> 'groups')]) as agg
-            from ${table} lf where lf.tenant = ${tenant} and payload @> ${rootQuery
+            .toString()}::jsonb ) <@ any (array (select jsonb_array_elements(payload -> 'groups'))) as agg
+            from ${table} lf where lf.tenant = ${tenant} and payload @> ${_rootQuery
             .toString()}::jsonb), agg_2 as (select id, ARRAY_AGG(agg) from temps group by id),
             ids as (select * from agg_2 where true = all(array_remove(array_agg, null)) limit ${pageSize} offset ${page * pageSize} )
             select lf.* from ${table} lf, ids where ids.id = lf.id order by lf.payload->>'_id' desc """
@@ -259,12 +333,14 @@ trait PostgresDataStore[T] extends SQLSyntaxSupport[T] {
                                    sort: JsObject = Json.obj("_id" -> 1),
                                    page: Int,
                                    pageSize: Int): Future[(Seq[T], Int)] = {
-    for {
-      count <- count(tenant, query)
-      queryRes <- findManyByQueryPaginate(tenant, query, sort, page, pageSize)
-    } yield {
-      (queryRes, count)
-    }
+    Future
+      .sequence(
+        List(count(tenant, query),
+             findManyByQueryPaginate(tenant, query, sort, page, pageSize))
+      )
+      .map { e =>
+        (e(1).asInstanceOf[Seq[T]], e(0).asInstanceOf[Int])
+      }
   }
 
   def findManyByQueryPaginate(tenant: String,

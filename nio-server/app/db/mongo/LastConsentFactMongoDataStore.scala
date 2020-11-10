@@ -79,7 +79,9 @@ class LastConsentFactMongoDataStore(val mongoApi: ReactiveMongoApi)(
       orgKey: String,
       page: Int,
       pageSize: Int,
-      query: Option[String]): Future[(Seq[ConsentFact], Int)] = {
+      query: Option[String],
+      userIds: Option[String],
+      accepted: Option[String]): Future[(Seq[ConsentFact], Int)] = {
 
     findManyByQueryPaginateCount(tenant = tenant,
                                  query = Json.obj("orgKey" -> orgKey),

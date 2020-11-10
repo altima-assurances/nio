@@ -175,10 +175,18 @@ class ConsentController(
               orgKey: String,
               page: Int = 0,
               pageSize: Int = 10,
-              query: Option[String]) =
+              query: Option[String],
+              userIds: Option[String],
+              accepted: Option[String]) = {
     AuthAction.async { implicit req =>
       lastConsentFactDataStore
-        .findAllByOrgKey(tenant, orgKey, page, pageSize, query)
+        .findAllByOrgKey(tenant,
+                         orgKey,
+                         page,
+                         pageSize,
+                         query,
+                         userIds,
+                         accepted)
         .map {
           case (consentsFacts, count) =>
             val pagedConsentFacts =
@@ -194,6 +202,7 @@ class ConsentController(
             renderMethod(pagedConsentFacts)
         }
     }
+  }
 
   def getConsentFactHistory(tenant: String,
                             orgKey: String,
