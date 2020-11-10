@@ -6,8 +6,8 @@ import akka.stream.scaladsl.Source
 import play.api.Logger
 import play.api.libs.json._
 import scalikejdbc._
-import scalikejdbc.async._
-import scalikejdbc.streams.{DatabasePublisher, _}
+import async._
+import scalikejdbc.streams.DatabasePublisher
 
 import scala.concurrent.{ExecutionContext, Future}
 
