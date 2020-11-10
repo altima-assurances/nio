@@ -5,8 +5,17 @@ import akka.http.scaladsl.util.FastFuture
 import akka.stream.ActorMaterializer
 import akka.util.ByteString
 import auth.SecuredAuthContext
-import controllers.ErrorManager.{AppErrorManagerResult, ErrorManagerResult, ErrorWithStatusManagerResult}
-import db.{ConsentFactDataStore, LastConsentFactDataStore, OrganisationDataStore, UserDataStore}
+import controllers.ErrorManager.{
+  AppErrorManagerResult,
+  ErrorManagerResult,
+  ErrorWithStatusManagerResult
+}
+import db.{
+  ConsentFactDataStore,
+  LastConsentFactDataStore,
+  OrganisationDataStore,
+  UserDataStore
+}
 import libs.xmlorjson.XmlOrJson
 import messaging.KafkaMessageBroker
 import models.{ConsentFact, _}
