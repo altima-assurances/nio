@@ -284,7 +284,7 @@ trait PostgresDataStore[T] extends SQLSyntaxSupport[T] {
             .toString()}::jsonb ) <@ any (array (select jsonb_array_elements(payload -> 'groups'))) as agg
             from ${table} lf where lf.tenant = ${tenant} and payload @> ${_rootQuery
             .toString()}::jsonb), agg_2 as (select id, ARRAY_AGG(agg) from temps group by id),
-            ids as (select * from agg_2 where true = all(array_remove(array_agg, null)) limit ${pageSize} offset ${page * pageSize} )
+            ids as (select * from agg_2 where true = all(array_remove(array_agg, null)) limit ${pageSize} offset ${page * pageSize})
             select lf.* from ${table} lf, ids where ids.id = lf.id order by lf.payload->>'_id' asc """
         case 2 =>
           sql"""with temps as (
@@ -293,7 +293,7 @@ trait PostgresDataStore[T] extends SQLSyntaxSupport[T] {
             from ${table} lf where lf.tenant = ${tenant} and payload @> ${_rootQuery
             .toString()}::jsonb and payload -> 'userId' @> any (array (select jsonb_array_elements(${userIds
             .toString()}::jsonb)))), agg_2 as (select id, ARRAY_AGG(agg) from temps group by id),
-            ids as (select * from agg_2 where true = all(array_remove(array_agg, null)))
+            ids as (select * from agg_2 where true = all(array_remove(array_agg, null)) limit ${pageSize} offset ${page * pageSize})
             select lf.* from ${table} lf, ids where ids.id = lf.id order by lf.payload->>'_id' asc """
         case 3 =>
           sql"""with temps as (
@@ -302,7 +302,7 @@ trait PostgresDataStore[T] extends SQLSyntaxSupport[T] {
             from ${table} lf where lf.tenant = ${tenant} and payload @> ${_rootQuery
             .toString()}::jsonb and payload -> 'userId' @> any (array (select jsonb_array_elements(${userIds
             .toString()}::jsonb)))), agg_2 as (select id, ARRAY_AGG(agg) from temps group by id),
-            ids as (select * from agg_2 where true = all(array_remove(array_agg, null)))
+            ids as (select * from agg_2 where true = all(array_remove(array_agg, null)) limit ${pageSize} offset ${page * pageSize})
             select lf.* from ${table} lf, ids where ids.id = lf.id order by lf.payload->>'_id' asc """
         case 4 =>
           sql"""with temps as (
@@ -318,7 +318,7 @@ trait PostgresDataStore[T] extends SQLSyntaxSupport[T] {
             .toString()}::jsonb ) <@ any (array (select jsonb_array_elements(payload -> 'groups'))) as agg
             from ${table} lf where lf.tenant = ${tenant} and payload @> ${_rootQuery
             .toString()}::jsonb), agg_2 as (select id, ARRAY_AGG(agg) from temps group by id),
-            ids as (select * from agg_2 where true = all(array_remove(array_agg, null)) limit ${pageSize} offset ${page * pageSize} )
+            ids as (select * from agg_2 where true = all(array_remove(array_agg, null)) limit ${pageSize} offset ${page * pageSize})
             select lf.* from ${table} lf, ids where ids.id = lf.id order by lf.payload->>'_id' desc """
       }
       sqlQuery
