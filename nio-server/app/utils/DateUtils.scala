@@ -1,7 +1,7 @@
 package utils
 
 import play.api.libs.json._
-import org.joda.time.DateTime
+import org.joda.time.{DateTime, LocalDateTime}
 import org.joda.time.format.DateTimeFormat
 
 import scala.util.{Failure, Success, Try}
@@ -22,7 +22,9 @@ object DateUtils {
 
   val utcDateTimeWrites = new Writes[DateTime] {
     override def writes(o: DateTime): JsValue =
-      JsString(o.toString(DateUtils.utcDateFormatter))
+      if (o == null)
+        JsString(DateTime.now().toString(DateUtils.utcDateFormatter))
+      else JsString(o.toString(DateUtils.utcDateFormatter))
   }
 
   val utcDateTimeFormats: Format[DateTime] =
